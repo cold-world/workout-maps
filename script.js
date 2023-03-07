@@ -1,5 +1,3 @@
-const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
 // Elements
 const form = document.querySelector('.form');
 const containerWorkouts = document.querySelector('.workouts');
@@ -8,6 +6,8 @@ const inputDistance = document.querySelector('.form__input--distance');
 const inputDuration = document.querySelector('.form__input--duration');
 const inputCadence = document.querySelector('.form__input--cadence');
 const inputElevation = document.querySelector('.form__input--elevation');
+
+/////////////////////////////////////////////////////////////////
 
 class Workout {
   date = new Date();
@@ -75,12 +75,15 @@ class Cycling extends Workout {
 class App {
   #map;
   #mapEvent;
+  #mapZoomLevel = 13;
   #workouts = [];
 
   constructor() {
     this._getPosition();
     form.addEventListener('submit', this._newWorkout.bind(this));
     inputType.addEventListener('change', this._toggleElevationField);
+    containerWorkouts.addEventListener('click', this._moveToPopup.bind(this));
+    this._getFromLocalStorage();
   }
 
   _getPosition() {
@@ -96,15 +99,20 @@ class App {
     const { longitude } = position.coords;
     const coords = [latitude, longitude];
 
-    this.#map = L.map('map').setView(coords, 13);
+    this.#map = L.map('map').setView(coords, this.#mapZoomLevel);
     this.#map.on('click', this._showForm.bind(this));
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(this.#map);
+
+    this.#workouts.forEach(item => {
+      this._addMarker(item);
+    })
   }
 
   _showForm(mapE) {
+    inputDistance.value = inputDuration.value = inputCadence.value = inputElevation.value = '';
     this.#mapEvent = mapE;
     form.classList.remove('hidden');
     inputDistance.focus();
@@ -162,7 +170,9 @@ class App {
     this._addMarker(workout);
     this._renderWorkout(workout);
     this._hideForm();
+    this._setLocalStorage();
   }
+
   _addMarker(workout) {
     L.marker(workout.coords)
       .addTo(this.#map)
@@ -180,7 +190,7 @@ class App {
   }
   _renderWorkout(workout) {
     let template = `
-      <li class="workout workout-- ${workout.type}" data-id=${workout.id}>
+      <li class="workout workout--${workout.type}" data-id=${workout.id}>
           <h2 class="workout__title">${workout.description}</h2>
           <div class="workout__details">
             <span class="workout__icon">${workout.type === 'running' ? '🏃‍♂️' : '🚴‍♀️'}</span>
@@ -224,6 +234,27 @@ class App {
         </li>`;
     }
     form.insertAdjacentHTML('afterend', template);
+  }
+  _moveToPopup(e) {
+    const workoutEl = e.target.closest('.workout');
+    if (!workoutEl) return;
+
+    const workout = this.#workouts.find((item) => item.id === workoutEl.dataset.id);
+    this.#map.setView(workout.coords, this.#mapZoomLevel, {
+      animate: true,
+    });
+  }
+  _setLocalStorage() {
+    localStorage.setItem('workouts', JSON.stringify(this.#workouts));
+  }
+  _getFromLocalStorage() {
+    const data = JSON.parse(localStorage.getItem('workouts'));
+    if(!data) return;
+    this.#workouts = data;
+
+    this.#workouts.forEach(item => {
+      this._renderWorkout(item);
+    })
   }
 }
 
